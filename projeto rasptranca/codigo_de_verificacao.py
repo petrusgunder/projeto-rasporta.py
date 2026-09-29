@@ -1,13 +1,38 @@
-from banco_de_dados import Digital_existe
+import sys
+from rpi_luz import AcenderLuz
+from usuarios import BuscarUsuarioPorCodigoBarras
 
 
-def VerificarDigital(codigo_digital):
-    """
-    Recebe o código de uma digital e retorna True se ela existir
-    no banco de dados, ou False caso contrário.
-    Equivalente à lógica de 'CodigoDeVerificação', mas sem input()/print(),
-    já que aqui quem chama é uma rota Flask (routes.py).
-    """
-    if not codigo_digital:
-        return False
-    return Digital_existe(codigo_digital)
+def iniciar_verificacao_terminal():
+    print("=" * 60)
+    print("  SISTEMA DE VERIFICAÇÃO DE CÓDIGO DE BARRAS (TERMINAL)")
+    print("  Aguardando leitura do código... (Pressione Ctrl+C para sair)")
+    print("=" * 60)
+
+    while True:
+        try:
+            codigo = input("\n[Aguardando Leitura] Informe o Código de Barras: ").strip()
+
+            if not codigo:
+                continue
+
+            usuario = BuscarUsuarioPorCodigoBarras(codigo)
+
+            if usuario:
+                # usuario = (id, nome, email, is_admin, codigo_barras)
+                nome_usuario = usuario[1]
+                print(f" [ACESSO PERMITIDO] Usuário Encontrado: {nome_usuario}")
+                AcenderLuz(True, segundos=3)
+            else:
+                print(f" [ACESSO NEGADO] Código de barras '{codigo}' não cadastrado!")
+                AcenderLuz(False, segundos=3)
+
+        except KeyboardInterrupt:
+            print("\n\nSaindo do sistema de verificação por terminal...")
+            sys.exit(0)
+        except Exception as e:
+            print(f"⚠️ Ocorreu um erro durante o processamento: {e}")
+
+
+if __name__ == "__main__":
+    iniciar_verificacao_terminal()

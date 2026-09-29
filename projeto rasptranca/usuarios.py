@@ -6,7 +6,6 @@ Utiliza a mesma conexao global definida em banco_de_dados.py.
 from werkzeug.security import generate_password_hash, check_password_hash
 from banco_de_dados import conexao, cursor
 
-# Credenciais do administrador padrao (criado automaticamente no primeiro uso)
 ADMIN_EMAIL = "admin@admin.com"
 ADMIN_SENHA = "admin127"
 
@@ -30,7 +29,6 @@ def CadastrarUsuarioSistema(nome, email, senha, is_admin=0, codigo_barras=None):
     if "@" not in email or "." not in email:
         return False, "Email invalido."
 
-    # Verifica se o email ja esta em uso
     cursor.execute("SELECT 1 FROM SistemaUsuario WHERE email = ?", (email,))
     if cursor.fetchone():
         return False, "Ja existe um usuario com este email."
@@ -56,7 +54,7 @@ def AutenticarUsuario(email, senha):
     )
     usuario = cursor.fetchone()
     if usuario and check_password_hash(usuario[3], senha):
-        return usuario  # (id, nome, email, senha_hash, is_admin)
+        return usuario
     return None
 
 
@@ -84,7 +82,6 @@ def EditarUsuarioSistema(id_usuario, nome, email, is_admin, codigo_barras=None):
 
 
 def ExcluirUsuarioSistema(id_usuario):
-    # Remove reservas do usuario antes de apagar (evita erro de FK)
     cursor.execute("DELETE FROM Reserva WHERE id_usuario = ?", (id_usuario,))
     cursor.execute("DELETE FROM SistemaUsuario WHERE id = ?", (id_usuario,))
     conexao.commit()
@@ -99,11 +96,21 @@ def AlterarSenha(id_usuario, nova_senha):
 
 
 def VerificarCodigoBarras(codigo):
-    """Verifica se o codigo de barras pertence a algum usuario cadastrado.
-    Retorna True se existir, False caso contrario. (Substitui a verificação por digital)"""
+    """Verifica se o codigo de barras pertence a algum usuario cadastrado."""
     if not codigo:
         return False
     cursor.execute(
         "SELECT 1 FROM SistemaUsuario WHERE codigo_barras = ?", (codigo.strip(),)
     )
     return cursor.fetchone() is not None
+
+
+def BuscarUsuarioPorCodigoBarras(codigo):
+    """Retorna o usuario correspondente ao codigo de barras."""
+    if not codigo:
+        return None
+    cursor.execute(
+        "SELECT id, nome, email, is_admin, codigo_barras FROM SistemaUsuario WHERE codigo_barras = ?",
+        (codigo.strip(),),
+    )
+    return cursor.fetchone()

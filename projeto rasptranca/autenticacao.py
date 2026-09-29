@@ -1,7 +1,6 @@
 from functools import wraps
 from flask import session, redirect, url_for
 
-# Troque essa senha pela que você quiser usar no projeto
 SENHA_ACESSO = "1234"
 
 def login_required(funcao):

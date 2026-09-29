@@ -23,17 +23,16 @@ cursor.executescript("""
         FOREIGN KEY (id_digital) REFERENCES Digital(id)
     );
 
-    -- Usuarios do Sistema de Agenda (login com email/senha)
     CREATE TABLE IF NOT EXISTS SistemaUsuario (
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
         nome VARCHAR(100) NOT NULL,
         email VARCHAR(100) NOT NULL UNIQUE,
         senha_hash VARCHAR(200) NOT NULL,
         is_admin BOOLEAN NOT NULL DEFAULT 0,
+        codigo_barras VARCHAR(50),
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
-    -- Laboratorios do Sistema de Agenda
     CREATE TABLE IF NOT EXISTS Laboratorio (
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
         nome VARCHAR(50) NOT NULL,
@@ -41,7 +40,6 @@ cursor.executescript("""
         capacidade INTEGER NOT NULL DEFAULT 30
     );
 
-    -- Reservas de Laboratorio
     CREATE TABLE IF NOT EXISTS Reserva (
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
         id_usuario INTEGER NOT NULL,
@@ -56,14 +54,12 @@ cursor.executescript("""
     );
 """)
 
-# Campo de codigo de barras para o SistemaUsuario (criacao/upgrade seguro)
 try:
     cursor.execute("ALTER TABLE SistemaUsuario ADD COLUMN codigo_barras VARCHAR(50)")
     conexao.commit()
 except Exception:
-    pass  # coluna ja existe (banco ja criado)
+    pass
 
-# Ids dos periodos (patrao IFSC): 55 min cada
 PERIODOS = {
     1: "08:00 - 08:55",
     2: "09:00 - 09:50",
@@ -77,14 +73,11 @@ PERIODOS = {
 
 def MostarUsuarios():
     cursor.execute("""SELECT * FROM Usuario""")
-    usuarios = cursor.fetchall()
-    return usuarios  
+    return cursor.fetchall()
 
 def MostrarDigitais():
     cursor.execute("""SELECT * FROM Digital""")
-    digitals = cursor.fetchall()
-    return digitals 
-
+    return cursor.fetchall()
 
 def CadastrarUsuario(nome, cargo, email, codigo_digital):
     cursor.execute("""INSERT INTO Usuario (nome, cargo, email) VALUES(?,?,?)""", (nome, cargo, email))
@@ -97,14 +90,11 @@ def CadastrarUsuario(nome, cargo, email, codigo_digital):
 def ExcluirUsuario(id_usuario):
     cursor.execute("""SELECT id_digital FROM UsuarioDigital WHERE id_usuario = ?""", (id_usuario,))
     resultado = cursor.fetchone()
-    
     if resultado:
         id_digital = resultado[0]
-        
         cursor.execute("""DELETE FROM UsuarioDigital WHERE id_usuario = ?""", (id_usuario,))
         cursor.execute("""DELETE FROM Usuario WHERE id = ?""", (id_usuario,))
         cursor.execute("""DELETE FROM Digital WHERE id = ?""", (id_digital,))
-        
         print(f"Usuário {id_usuario} e sua digital foram excluídos com sucesso!")
     else:
         print("Usuário não encontrado.")
@@ -112,38 +102,26 @@ def ExcluirUsuario(id_usuario):
 
 def EditarUsuarioAll():
     id_usuario = int(input("Digite o ID do usuário que deseja editar: "))
-    
     cursor.execute("""SELECT * FROM Usuario WHERE id = ?""", (id_usuario,))
     usuario = cursor.fetchone()
-    
     if usuario:
         nome_atual, cargo_atual, email_atual = usuario[1], usuario[2], usuario[3]
-        
         novo_nome = input(f"Digite o novo nome (atual: {nome_atual}): ") or nome_atual
         novo_cargo = input(f"Digite o novo cargo (atual: {cargo_atual}): ") or cargo_atual
         novo_email = input(f"Digite o novo email (atual: {email_atual}): ") or email_atual
-        
         cursor.execute("""UPDATE Usuario SET nome = ?, cargo = ?, email = ? WHERE id = ?""",
                        (novo_nome, novo_cargo, novo_email, id_usuario))
-        
         print("Usuário atualizado com sucesso!")
     else:
         print("Usuário não encontrado.")
-
     conexao.commit()
 
 def Digital_existe(codigo_busca):
-    # Reaproveita a mesma conexão global, em vez de abrir uma nova a cada chamada
     cursor.execute("SELECT 1 FROM Digital WHERE codigo = ?", (codigo_busca,))
     resultado = cursor.fetchone()
     return resultado is not None
 
-
 def BuscarUsuarioComDigital(id_usuario):
-    """
-    Retorna (id, nome, cargo, email, codigo_digital) de um usuário específico,
-    juntando as tabelas Usuario, UsuarioDigital e Digital.
-    """
     cursor.execute("""
         SELECT Usuario.id, Usuario.nome, Usuario.cargo, Usuario.email, Digital.codigo
         FROM Usuario
@@ -153,26 +131,19 @@ def BuscarUsuarioComDigital(id_usuario):
     """, (id_usuario,))
     return cursor.fetchone()
 
-
 def EditarUsuario(id_usuario, nome, cargo, email, codigo_digital):
-    """
-    Atualiza nome, cargo, email do usuário e o código da digital associada a ele.
-    """
     cursor.execute(
         "UPDATE Usuario SET nome = ?, cargo = ?, email = ? WHERE id = ?",
         (nome, cargo, email, id_usuario)
     )
-
     cursor.execute("""
         SELECT id_digital FROM UsuarioDigital WHERE id_usuario = ?
     """, (id_usuario,))
     resultado = cursor.fetchone()
-
     if resultado:
         id_digital = resultado[0]
         cursor.execute(
             "UPDATE Digital SET codigo = ? WHERE id = ?",
             (codigo_digital, id_digital)
         )
-
     conexao.commit()

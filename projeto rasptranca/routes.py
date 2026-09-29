@@ -2,11 +2,9 @@ from codigo import app
 from datetime import date
 from flask import render_template, request, redirect, url_for, session, flash
 from autenticacao import login_usuario_required, admin_required
-from rpi_luz import AcenderLuz
 from usuarios import (
     CadastrarUsuarioSistema, AutenticarUsuario, BuscarUsuarioSistema,
     ListarUsuariosSistema, EditarUsuarioSistema, ExcluirUsuarioSistema,
-    VerificarCodigoBarras,
 )
 from agenda import (
     ListarLaboratorios, CadastrarLaboratorio, EditarLaboratorio, ExcluirLaboratorio,
@@ -17,7 +15,6 @@ from agenda import (
 )
 
 
-# Disponibiliza o usuario logado, os periodos e a data de hoje para todos os templates
 @app.context_processor
 def contexto_global():
     return {
@@ -38,7 +35,7 @@ def home():
     hoje = date.today().isoformat()
     data = request.args.get("data", "") or hoje
     if data < hoje:
-        data = hoje  # a grade nunca mostra datas passadas (ficam so no historico)
+        data = hoje
     grade = DisponibilidadeNaData(data)
     minhas = {}
     if session.get("usuario_id"):
@@ -74,7 +71,6 @@ def login():
             session["usuario_id"] = usuario[0]
             session["usuario_nome"] = usuario[1]
             session["usuario_admin"] = bool(usuario[4])
-            # vai para o painel ADM se for admin, senao para a home (reserva)
             destino = url_for("admin_dashboard") if usuario[4] else url_for("home")
             return redirect(destino)
         erro = "Email ou senha incorretos."
@@ -90,7 +86,7 @@ def logout():
 
 
 # =====================================================================
-#  CONFIG (MINHA CONTA) - hub do usuario: perfil, reservas, historico
+#  CONFIG (MINHA CONTA)
 # =====================================================================
 
 @app.route("/config")
@@ -102,7 +98,7 @@ def config():
 
 
 # =====================================================================
-#  AGENDA - ver periodos ocupados (reserva feita pela home via /reservar)
+#  AGENDA
 # =====================================================================
 
 @app.route("/agenda", methods=["GET"])
@@ -148,7 +144,7 @@ def cancelar_reserva(id_reserva):
 
 
 # =====================================================================
-#  HISTORICO - reservas passadas (somente leitura)
+#  HISTORICO
 # =====================================================================
 
 @app.route("/historico")
@@ -156,35 +152,6 @@ def cancelar_reserva(id_reserva):
 def historico():
     reservas = ListarReservasPassadasDoUsuario(session["usuario_id"])
     return render_template("historico.html", reservas=reservas)
-
-
-# =====================================================================
-#  VERIFICACAO POR CODIGO DE BARRAS (estacao de hardware - publica)
-# =====================================================================
-
-@app.route("/verificar_codigo", methods=["GET", "POST"])
-def verificar_codigo():
-    resultado = None
-    codigo = None
-    if request.method == "POST":
-        codigo = request.form.get("codigo")
-        resultado = VerificarCodigoBarras(codigo)
-        AcenderLuz(resultado)  # verde se valido, vermelho se nao
-
-    # mostra o nome do usuario, se encontrado
-    nome_usuario = None
-    if resultado:
-        for u in ListarUsuariosSistema():
-            if u[4] and u[4].strip() == (codigo or "").strip():
-                nome_usuario = u[1]
-                break
-
-    return render_template(
-        "verificacao_codigo.html",
-        resultado=resultado,
-        codigo=codigo,
-        nome_usuario=nome_usuario,
-    )
 
 
 # =====================================================================

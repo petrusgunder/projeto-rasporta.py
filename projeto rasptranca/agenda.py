@@ -54,7 +54,6 @@ def EditarLaboratorio(id_lab, nome, descricao, capacidade):
 
 
 def ExcluirLaboratorio(id_lab):
-    # Remove reservas do lab antes de apagar
     cursor.execute("DELETE FROM Reserva WHERE id_laboratorio = ?", (id_lab,))
     cursor.execute("DELETE FROM Laboratorio WHERE id = ?", (id_lab,))
     conexao.commit()
@@ -93,8 +92,7 @@ def ReservarLaboratorio(id_usuario, id_lab, data, periodo, descricao=""):
         )
         conexao.commit()
         return True, "Laboratorio reservado!"
-    except Exception as e:
-        # UNIQUE(...) impede reserva duplicada no mesmo lab/data/periodo
+    except Exception:
         return False, "Este periodo ja esta reservado neste laboratorio."
 
 
@@ -148,7 +146,7 @@ def ListarReservasPassadasDoUsuario(id_usuario):
 
 
 def ReservasDoUsuarioNaData(id_usuario, data):
-    """Returns dict {id_lab: set(periodos)} do usuario numa data (marca "Reservado (voce)")."""
+    """Returns dict {id_lab: set(periodos)} do usuario numa data."""
     cursor.execute(
         "SELECT id_laboratorio, periodo FROM Reserva WHERE id_usuario = ? AND data_reserva = ?",
         (id_usuario, data),
@@ -172,8 +170,7 @@ def ListarTodasReservas():
 
 
 def DisponibilidadeNaData(data):
-    """Retorna um dict {id_lab: {periodo: ocupado_bool}} para todos os labs numa data.
-    Útil para montar a planilha visual de disponibilidade (pública)."""
+    """Retorna um dict {id_lab: {periodo: ocupado_bool}} para todos os labs numa data."""
     labs = ListarLaboratorios()
     cursor.execute(
         "SELECT id_laboratorio, periodo FROM Reserva WHERE data_reserva = ?", (data,)
