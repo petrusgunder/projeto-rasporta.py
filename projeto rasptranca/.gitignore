@@ -1,0 +1,9 @@
+##pastas
+
+/.venv
+/__pycache__
+
+##arquivos
+
+banco.db
+

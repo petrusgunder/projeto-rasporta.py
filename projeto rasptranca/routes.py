@@ -205,7 +205,7 @@ def admin_usuarios():
 
 @app.route("/admin/laboratorios", methods=["GET", "POST"])
 @admin_required
-def admin_laboratorios():
+def admin_laboratorios(): 
     mensagem = None
     if request.method == "POST":
         acao = request.form.get("acao")

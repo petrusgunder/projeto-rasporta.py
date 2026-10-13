@@ -1,93 +1,122 @@
 {% extends "base.html" %}
-{% block titulo %}Início - Reserva de Laboratorios{% endblock %}
+{% block titulo %}Início - Reserva de Laboratórios{% endblock %}
 
 {% block conteudo %}
-    <h1>Reserve seu laboratório</h1>
-    <h2>Escolha a data e clique em <strong>Reservar</strong> no período livre desejado</h2>
+<div class="page-container">
+    <header class="page-hero">
+        <span class="hero-subtitle">Sistema de Agendamento</span>
+        <h1 class="hero-title">Reserve seu Laboratório</h1>
+        <p class="hero-description">Escolha a data desejada para consultar e gerenciar os horários disponíveis.</p>
+    </header>
 
-    <form action="{{ url_for('home') }}" method="GET">
-        <label for="data">Data:</label>
-        <input type="date" name="data" id="data" value="{{ data }}" min="{{ hoje }}" required>
-        {% if data != hoje %}
-            <a href="{{ url_for('home') }}" class="link-extra">Hoje</a>
-        {% endif %}
-        <button type="submit">Ver disponibilidade</button>
-    </form>
+    <div class="card-filtro">
+        <form action="{{ url_for('home') }}" method="GET" class="form-filtro-data">
+            <div class="grupo-input-data">
+                <label for="data" class="label-data">Data da Consulta</label>
+                <div class="input-wrapper">
+                    <input type="date" name="data" id="data" value="{{ data }}" min="{{ hoje }}" required class="input-data">
+                    {% if data != hoje %}
+                        <a href="{{ url_for('home') }}" class="btn-hoje" title="Ir para o dia de hoje">Hoje</a>
+                    {% endif %}
+                </div>
+            </div>
+            <button type="submit" class="btn-primary">Ver disponibilidade</button>
+        </form>
+    </div>
 
     {% if data %}
-        <div class="lenda">
-            <span class="cel-legenda livre">● <span class="badge badge-livre">Livre</span></span>
-            <span class="cel-legenda ocupado">● <span class="badge badge-ocupado">Ocupado</span></span>
-            <span class="cel-legenda reservado">● <span class="badge badge-reservado">Reservado (você)</span></span>
+        <div class="legenda-container">
+            <span class="legenda-item"><span class="badge badge-livre">Livre</span></span>
+            <span class="legenda-item"><span class="badge badge-ocupado">Ocupado</span></span>
+            <span class="legenda-item"><span class="badge badge-reservado">Reservado por você</span></span>
         </div>
-        <div class="planilha-wrapper">
-            <table class="planilha">
-                <thead>
-                    <tr>
-                        <th>Laboratório</th>
-                        {% for num in periodos.keys() %}
-                            <th>
-                                {{ num }}<br>
-                                <small>{{ periodos[num] }}</small>
-                            </th>
-                        {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for lab in labs %}
-                    <tr>
-                        <td class="lab-nome">{{ lab[1] }}</td>
-                        {% set id_lab = lab[0] %}
-                        {% for num in periodos.keys() %}
-                            {% if grade[id_lab][num] %}
-                                {% if usuario_sessao and id_lab in minhas_reservas and num in minhas_reservas[id_lab] %}
-                                    <td class="cel res minhas"><span class="badge badge-reservado">Reservado</span></td>
+
+        <div class="planilha-card">
+            <div class="planilha-wrapper">
+                <table class="planilha">
+                    <thead>
+                        <tr>
+                            <th class="th-lab">Laboratório</th>
+                            {% for num in periodos.keys() %}
+                                <th>
+                                    <span class="periodo-num">{{ num }}</span>
+                                    <small class="periodo-hora">{{ periodos[num] }}</small>
+                                </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lab in labs %}
+                        <tr>
+                            <td class="lab-nome">
+                                <span>{{ lab[1] }}</span>
+                            </td>
+                            {% set id_lab = lab[0] %}
+                            {% for num in periodos.keys() %}
+                                {% if grade[id_lab][num] %}
+                                    {% if usuario_sessao and id_lab in minhas_reservas and num in minhas_reservas[id_lab] %}
+                                        <td class="cel res minhas">
+                                            <span class="badge badge-reservado">Reservado</span>
+                                        </td>
+                                    {% else %}
+                                        <td class="cel res ocupado">
+                                            <span class="badge badge-ocupado">Ocupado</span>
+                                        </td>
+                                    {% endif %}
+                                {% elif usuario_sessao %}
+                                    <td class="cel res livre">
+                                        <form class="reserva-inline" action="{{ url_for('reservar') }}" method="POST">
+                                            <input type="hidden" name="laboratorio" value="{{ id_lab }}">
+                                            <input type="hidden" name="data" value="{{ data }}">
+                                            <input type="hidden" name="periodo" value="{{ num }}">
+                                            <button type="button" class="botao-reservar" onclick="alternarMotivo(this)">Reservar</button>
+                                            <span class="motivo-inline" style="display: none;">
+                                                <input type="text" name="descricao" placeholder="Motivo (opcional)">
+                                                <button type="submit" class="botao-confirmar">Confirmar</button>
+                                            </span>
+                                        </form>
+                                    </td>
                                 {% else %}
-                                    <td class="cel res ocupado"><span class="badge badge-ocupado">Ocupado</span></td>
+                                    <td class="cel res livre">
+                                        <span class="badge badge-livre">Livre</span>
+                                    </td>
                                 {% endif %}
-                            {% elif usuario_sessao %}
-                                <td class="cel res livre">
-                                    <form class="reserva-inline" action="{{ url_for('reservar') }}" method="POST">
-                                        <input type="hidden" name="laboratorio" value="{{ id_lab }}">
-                                        <input type="hidden" name="data" value="{{ data }}">
-                                        <input type="hidden" name="periodo" value="{{ num }}">
-                                        <button type="button" class="botao-reservar" onclick="alternarMotivo(this)">Reservar</button>
-                                        <span class="motivo-inline">
-                                            <input type="text" name="descricao" placeholder="Motivo (opcional)">
-                                            <button type="submit" class="botao-confirmar">Confirmar</button>
-                                        </span>
-                                    </form>
-                                </td>
-                            {% else %}
-                                <td class="cel res livre"><span class="badge badge-livre">Livre</span></td>
-                            {% endif %}
+                            {% endfor %}
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="sem-registros">Nenhum laboratório cadastrado no momento.</td>
+                        </tr>
                         {% endfor %}
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="9" style="text-align:center;">Nenhum laboratório cadastrado.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        {% if usuario_sessao %}
-            <p class="link-extra"><a href="{{ url_for('config') }}">Ver minhas reservas</a></p>
-        {% else %}
-            <p class="box-aviso"><a href="{{ url_for('login') }}">Entre para reservar um laboratório</a></p>
-        {% endif %}
+        <div class="rodape-acoes">
+            {% if usuario_sessao %}
+                <a href="{{ url_for('config') }}" class="link-acao-secundario">Minhas Reservas &rarr;</a>
+            {% else %}
+                <div class="box-aviso">
+                    <span>Deseja efetuar uma reserva?</span>
+                    <a href="{{ url_for('login') }}" class="link-destaque">Entre na sua conta</a>
+                </div>
+            {% endif %}
+        </div>
     {% else %}
-        <p class="box-aviso">Selecione uma data acima para ver a disponibilidade dos laboratórios.</p>
+        <div class="box-aviso box-aviso-central">
+            <p>Selecione uma data acima para visualizar o mapa de disponibilidade dos laboratórios.</p>
+        </div>
     {% endif %}
+</div>
 
-    <script>
-        function alternarMotivo(botao) {
-            var form = botao.closest('form');
-            var area = form.querySelector('.motivo-inline');
-            var oculto = area.style.display === 'none';
-            area.style.display = oculto ? 'flex' : 'none';
-            botao.textContent = oculto ? 'Fechar' : 'Reservar';
-        }
-    </script>
+<script>
+    function alternarMotivo(botao) {
+        var form = botao.closest('form');
+        var area = form.querySelector('.motivo-inline');
+        var oculto = area.style.display === 'none' || area.style.display === '';
+        area.style.display = oculto ? 'flex' : 'none';
+        botao.textContent = oculto ? 'Fechar' : 'Reservar';
+    }
+</script>
 {% endblock %}
