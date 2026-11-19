@@ -1,38 +1,41 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="{{ 'es' if idioma_atual == 'es' else 'pt-BR' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <title>{% block titulo %}RaspTranca - Agenda de Laboratorios{% endblock %}</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Stack+Sans+Headline:wght@200..700&display=swap" rel="stylesheet">
+    <title>{% block titulo %}{{ t('app_titulo') }}{% endblock %}</title>
 </head>
 <body>
     <header class="topo">
         <nav class="nav-principal">
-            <a href="{{ url_for('home') }}" {% if request.endpoint == 'home' %}class="ativo"{% endif %}>Início</a>
+            <a href="{{ url_for('home') }}" {% if request.endpoint == 'home' %}class="ativo"{% endif %}>{{ t('nav_inicio') }}</a>
             {% if usuario_sessao %}
-                <a href="{{ url_for('config') }}" {% if request.endpoint in ['config', 'minhas_reservas', 'historico'] %}class="ativo"{% endif %}>Minha Conta</a>
+                <a href="{{ url_for('config') }}" {% if request.endpoint in ['config', 'historico'] %}class="ativo"{% endif %}>{{ t('nav_minha_conta') }}</a>
                 {% if usuario_eh_admin %}
-                    <a href="{{ url_for('admin_dashboard') }}" class="link-admin">ADM</a>
+                    <a href="{{ url_for('admin_dashboard') }}" class="link-admin {% if request.endpoint and request.endpoint.startswith('admin_') %}ativo{% endif %}">{{ t('nav_adm') }}</a>
                 {% endif %}
             {% else %}
-                <a href="{{ url_for('login') }}" {% if request.endpoint == 'login' %}class="ativo"{% endif %}>Entrar</a>
+                <a href="{{ url_for('login') }}" {% if request.endpoint == 'login' %}class="ativo"{% endif %}>{{ t('nav_entrar') }}</a>
             {% endif %}
         </nav>
         <div class="topo-direita">
-            <button id="botao-tema" class="botao-tema" title="Alternar tema">🌙</button>
+            <div class="seletor-idioma" aria-label="{{ t('alternar_idioma') }}">
+                <a href="{{ url_for('trocar_idioma', codigo='pt') }}" class="btn-idioma {% if idioma_atual == 'pt' %}ativo{% endif %}">PT</a>
+                <a href="{{ url_for('trocar_idioma', codigo='es') }}" class="btn-idioma {% if idioma_atual == 'es' %}ativo{% endif %}">ES</a>
+            </div>
+            <button id="botao-tema" class="botao-tema" title="{{ t('alternar_tema') }}">🌙</button>
             {% if usuario_sessao %}
-                <span class="boas-vindas">Olá, {{ usuario_sessao }}{% if usuario_eh_admin %} (ADM){% endif %}</span>
-                <a class="botao-sair" href="{{ url_for('logout') }}">Sair</a>
+                <span class="boas-vindas">{{ t('ola') }}, {{ usuario_sessao }}{% if usuario_eh_super_admin %} (SUPER ADM){% elif usuario_eh_admin %} (ADM){% endif %}</span>
+                <form action="{{ url_for('logout') }}" method="POST" style="display:inline; margin:0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn-hoje">{{ t('nav_sair') }}</button>
+                </form>
             {% endif %}
         </div>
     </header>
 
-    <main>
+    <main class="page-container">
         {% with mensagens = get_flashed_messages(with_categories=true) %}
             {% for categoria, msg in mensagens %}
                 <div class="resultado {{ 'invalida' if categoria == 'erro' else 'valida' }}">{{ msg }}</div>
@@ -42,7 +45,6 @@
     </main>
 
     <script>
-        // ------- Dark Mode (salva a preferencia no navegador) -------
         (function () {
             var botao = document.getElementById("botao-tema");
             function aplicar(tema) {

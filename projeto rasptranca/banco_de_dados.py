@@ -1,149 +1,199 @@
+import os
+import shutil
 import sqlite3
+from datetime import datetime
+from config_sistema import PERIODOS, agora_campus
 
-conexao = sqlite3.connect("banco.db", check_same_thread=False)
-cursor = conexao.cursor()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.environ.get("RASPORTA_DB_PATH", os.path.join(BASE_DIR, "banco.db"))
+BACKUP_DIR = os.path.join(BASE_DIR, "backups")
 
-cursor.executescript("""
-    CREATE TABLE IF NOT EXISTS Usuario(
-        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        nome VARCHAR(50) NOT NULL,
-        cargo VARCHAR(10) NOT NULL,
-        email VARCHAR(50) NOT NULL
-    );
-               
-    CREATE TABLE IF NOT EXISTS Digital(
-        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        codigo VARCHAR(10) NOT NULL
-    );
-               
-    CREATE TABLE IF NOT EXISTS UsuarioDigital(
-        id_usuario INTEGER NOT NULL,
-        id_digital INTEGER NOT NULL,
-        FOREIGN KEY (id_usuario) REFERENCES Usuario(id),
-        FOREIGN KEY (id_digital) REFERENCES Digital(id)
-    );
 
-    CREATE TABLE IF NOT EXISTS SistemaUsuario (
-        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        nome VARCHAR(100) NOT NULL,
-        email VARCHAR(100) NOT NULL UNIQUE,
-        senha_hash VARCHAR(200) NOT NULL,
-        is_admin BOOLEAN NOT NULL DEFAULT 0,
-        codigo_barras VARCHAR(50),
-        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+def get_db(db_path: str | None = None) -> sqlite3.Connection:
+    """
+    Abre uma conexao SQLite isolada por thread/requisicao, com:
+    - Chaves estrangeiras ativadas (PRAGMA foreign_keys = ON)
+    - Timeout de concorrencia (5000 ms)
+    - Modo WAL para leituras/escritas concorrentes seguras
+    """
+    caminho = db_path or DB_PATH
+    conn = sqlite3.connect(caminho, timeout=10.0)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA busy_timeout = 5000;")
+    try:
+        conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA synchronous = NORMAL;")
+    except sqlite3.OperationalError:
+        pass
+    return conn
 
-    CREATE TABLE IF NOT EXISTS Laboratorio (
-        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        nome VARCHAR(50) NOT NULL,
-        descricao VARCHAR(200),
-        capacidade INTEGER NOT NULL DEFAULT 30
-    );
 
-    CREATE TABLE IF NOT EXISTS Reserva (
-        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        id_usuario INTEGER NOT NULL,
-        id_laboratorio INTEGER NOT NULL,
-        data_reserva DATE NOT NULL,
-        periodo INTEGER NOT NULL,
-        descricao VARCHAR(200),
-        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (id_usuario) REFERENCES SistemaUsuario(id),
-        FOREIGN KEY (id_laboratorio) REFERENCES Laboratorio(id),
-        UNIQUE(id_laboratorio, data_reserva, periodo)
-    );
-""")
+def _coluna_existe(conn: sqlite3.Connection, tabela: str, coluna: str) -> bool:
+    cur = conn.execute(f"PRAGMA table_info({tabela})")
+    return any(row[1] == coluna for row in cur.fetchall())
 
-try:
-    cursor.execute("ALTER TABLE SistemaUsuario ADD COLUMN codigo_barras VARCHAR(50)")
-    conexao.commit()
-except Exception:
-    pass
 
-PERIODOS = {
-    1: "08:00 - 08:55",
-    2: "09:00 - 09:50",
-    3: "10:10 - 11:05",
-    4: "11:10 - 12:00",
-    5: "13:30 - 14:25",
-    6: "14:30 - 15:20",
-    7: "15:40 - 16:35",
-    8: "19:00 - 22:00",
-}
+def criar_backup_banco(db_path: str | None = None, destino_dir: str | None = None) -> str:
+    """
+    Realiza copia consistente a quente do SQLite usando a API nativa sqlite3.backup().
+    Retorna o caminho do arquivo de backup gerado.
+    """
+    origem_path = db_path or DB_PATH
+    pasta_destino = destino_dir or BACKUP_DIR
+    os.makedirs(pasta_destino, exist_ok=True)
 
-def MostarUsuarios():
-    cursor.execute("""SELECT * FROM Usuario""")
-    return cursor.fetchall()
+    timestamp = agora_campus().strftime("%Y%m%d_%H%M%S")
+    arquivo_backup = os.path.join(pasta_destino, f"banco_backup_{timestamp}.db")
 
-def MostrarDigitais():
-    cursor.execute("""SELECT * FROM Digital""")
-    return cursor.fetchall()
+    if not os.path.exists(origem_path):
+        return ""
 
-def CadastrarUsuario(nome, cargo, email, codigo_digital):
-    cursor.execute("""INSERT INTO Usuario (nome, cargo, email) VALUES(?,?,?)""", (nome, cargo, email))
-    id_usuario = cursor.lastrowid
-    cursor.execute("""INSERT INTO Digital (codigo) VALUES(?)""", (codigo_digital,))
-    id_digital = cursor.lastrowid
-    cursor.execute("""INSERT INTO UsuarioDigital VALUES(?,?)""", (id_usuario, id_digital))
-    conexao.commit() 
+    src = sqlite3.connect(origem_path)
+    dst = sqlite3.connect(arquivo_backup)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
 
-def ExcluirUsuario(id_usuario):
-    cursor.execute("""SELECT id_digital FROM UsuarioDigital WHERE id_usuario = ?""", (id_usuario,))
-    resultado = cursor.fetchone()
-    if resultado:
-        id_digital = resultado[0]
-        cursor.execute("""DELETE FROM UsuarioDigital WHERE id_usuario = ?""", (id_usuario,))
-        cursor.execute("""DELETE FROM Usuario WHERE id = ?""", (id_usuario,))
-        cursor.execute("""DELETE FROM Digital WHERE id = ?""", (id_digital,))
-        print(f"Usuário {id_usuario} e sua digital foram excluídos com sucesso!")
-    else:
-        print("Usuário não encontrado.")
-    conexao.commit()
-
-def EditarUsuarioAll():
-    id_usuario = int(input("Digite o ID do usuário que deseja editar: "))
-    cursor.execute("""SELECT * FROM Usuario WHERE id = ?""", (id_usuario,))
-    usuario = cursor.fetchone()
-    if usuario:
-        nome_atual, cargo_atual, email_atual = usuario[1], usuario[2], usuario[3]
-        novo_nome = input(f"Digite o novo nome (atual: {nome_atual}): ") or nome_atual
-        novo_cargo = input(f"Digite o novo cargo (atual: {cargo_atual}): ") or cargo_atual
-        novo_email = input(f"Digite o novo email (atual: {email_atual}): ") or email_atual
-        cursor.execute("""UPDATE Usuario SET nome = ?, cargo = ?, email = ? WHERE id = ?""",
-                       (novo_nome, novo_cargo, novo_email, id_usuario))
-        print("Usuário atualizado com sucesso!")
-    else:
-        print("Usuário não encontrado.")
-    conexao.commit()
-
-def Digital_existe(codigo_busca):
-    cursor.execute("SELECT 1 FROM Digital WHERE codigo = ?", (codigo_busca,))
-    resultado = cursor.fetchone()
-    return resultado is not None
-
-def BuscarUsuarioComDigital(id_usuario):
-    cursor.execute("""
-        SELECT Usuario.id, Usuario.nome, Usuario.cargo, Usuario.email, Digital.codigo
-        FROM Usuario
-        JOIN UsuarioDigital ON Usuario.id = UsuarioDigital.id_usuario
-        JOIN Digital ON Digital.id = UsuarioDigital.id_digital
-        WHERE Usuario.id = ?
-    """, (id_usuario,))
-    return cursor.fetchone()
-
-def EditarUsuario(id_usuario, nome, cargo, email, codigo_digital):
-    cursor.execute(
-        "UPDATE Usuario SET nome = ?, cargo = ?, email = ? WHERE id = ?",
-        (nome, cargo, email, id_usuario)
+    # Mantem no maximo os 15 backups mais recentes
+    arquivos = sorted(
+        [
+            os.path.join(pasta_destino, f)
+            for f in os.listdir(pasta_destino)
+            if f.startswith("banco_backup_") and f.endswith(".db")
+        ]
     )
-    cursor.execute("""
-        SELECT id_digital FROM UsuarioDigital WHERE id_usuario = ?
-    """, (id_usuario,))
-    resultado = cursor.fetchone()
-    if resultado:
-        id_digital = resultado[0]
-        cursor.execute(
-            "UPDATE Digital SET codigo = ? WHERE id = ?",
-            (codigo_digital, id_digital)
-        )
-    conexao.commit()
+    for antigo in arquivos[:-15]:
+        try:
+            os.remove(antigo)
+        except OSError:
+            pass
+
+    return arquivo_backup
+
+
+def restaurar_backup_banco(arquivo_backup: str, db_path: str | None = None) -> None:
+    """Restaura um arquivo de backup SQLite de forma segura."""
+    destino_path = db_path or DB_PATH
+    if not os.path.exists(arquivo_backup):
+        raise FileNotFoundError(f"Backup nao encontrado: {arquivo_backup}")
+    criar_backup_banco(destino_path)
+    shutil.copy2(arquivo_backup, destino_path)
+
+
+def inicializar_banco(db_path: str | None = None) -> None:
+    """
+    Cria tabelas, indices e aplica migracoes seguras sem apagar dados existentes.
+    """
+    caminho = db_path or DB_PATH
+    if os.path.exists(caminho):
+        criar_backup_banco(caminho)
+
+    conn = get_db(caminho)
+    try:
+        with conn:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS Usuario(
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    nome VARCHAR(50) NOT NULL,
+                    cargo VARCHAR(10) NOT NULL,
+                    email VARCHAR(50) NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS Digital(
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    codigo VARCHAR(10) NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS UsuarioDigital(
+                    id_usuario INTEGER NOT NULL,
+                    id_digital INTEGER NOT NULL,
+                    FOREIGN KEY (id_usuario) REFERENCES Usuario(id) ON DELETE CASCADE,
+                    FOREIGN KEY (id_digital) REFERENCES Digital(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS SistemaUsuario (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    nome VARCHAR(100) NOT NULL,
+                    email VARCHAR(100) NOT NULL UNIQUE,
+                    senha_hash VARCHAR(200) NOT NULL,
+                    is_admin INTEGER NOT NULL DEFAULT 0,
+                    nivel_admin VARCHAR(20) NOT NULL DEFAULT 'usuario',
+                    codigo_barras VARCHAR(50),
+                    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS Laboratorio (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    nome VARCHAR(50) NOT NULL UNIQUE,
+                    descricao VARCHAR(200),
+                    capacidade INTEGER NOT NULL DEFAULT 30
+                );
+
+                CREATE TABLE IF NOT EXISTS Reserva (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    id_usuario INTEGER NOT NULL,
+                    id_laboratorio INTEGER NOT NULL,
+                    data_reserva DATE NOT NULL,
+                    periodo INTEGER NOT NULL,
+                    descricao VARCHAR(200),
+                    serie_id VARCHAR(64),
+                    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (id_usuario) REFERENCES SistemaUsuario(id) ON DELETE CASCADE,
+                    FOREIGN KEY (id_laboratorio) REFERENCES Laboratorio(id) ON DELETE CASCADE,
+                    UNIQUE(id_laboratorio, data_reserva, periodo)
+                );
+
+                CREATE TABLE IF NOT EXISTS LogAdmin (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    admin_id INTEGER,
+                    admin_nome VARCHAR(100) NOT NULL,
+                    acao VARCHAR(80) NOT NULL,
+                    detalhes TEXT NOT NULL,
+                    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+            # Migracoes seguras para bancos pre-existentes
+            if not _coluna_existe(conn, "SistemaUsuario", "codigo_barras"):
+                conn.execute("ALTER TABLE SistemaUsuario ADD COLUMN codigo_barras VARCHAR(50)")
+
+            if not _coluna_existe(conn, "SistemaUsuario", "nivel_admin"):
+                conn.execute(
+                    "ALTER TABLE SistemaUsuario ADD COLUMN nivel_admin VARCHAR(20) NOT NULL DEFAULT 'usuario'"
+                )
+                # Preserva administradores existentes promovendo o primeiro a super_admin
+                admins = conn.execute(
+                    "SELECT id FROM SistemaUsuario WHERE is_admin = 1 ORDER BY id ASC"
+                ).fetchall()
+                for idx, row in enumerate(admins):
+                    nivel = "super_admin" if idx == 0 else "admin"
+                    conn.execute(
+                        "UPDATE SistemaUsuario SET nivel_admin = ? WHERE id = ?",
+                        (nivel, row["id"]),
+                    )
+
+            if not _coluna_existe(conn, "Reserva", "serie_id"):
+                conn.execute("ALTER TABLE Reserva ADD COLUMN serie_id VARCHAR(64)")
+
+            # Indices de integridade e desempenho
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_codigo_barras "
+                "ON SistemaUsuario(codigo_barras) WHERE codigo_barras IS NOT NULL AND codigo_barras != ''"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reserva_data_lab ON Reserva(data_reserva, id_laboratorio)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reserva_usuario ON Reserva(id_usuario, data_reserva)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reserva_serie ON Reserva(serie_id)"
+            )
+    finally:
+        conn.close()
+
+
+inicializar_banco()

@@ -1,37 +1,56 @@
 import sys
 from rpi_luz import AcenderLuz
-from usuarios import BuscarUsuarioPorCodigoBarras
+from agenda import ListarLaboratorios, validar_acesso_fisico_codigo
 
 
 def iniciar_verificacao_terminal():
-    print("=" * 60)
-    print("  SISTEMA DE VERIFICAÇÃO DE CÓDIGO DE BARRAS (TERMINAL)")
-    print("  Aguardando leitura do código... (Pressione Ctrl+C para sair)")
-    print("=" * 60)
+    print("=" * 65)
+    print("  SISTEMA DE CONTROLE DE ACESSO - IFSC CAMPUS GAROPABA")
+    print("  Estação de Leitura por Código de Barras + Validação Temporal")
+    print("=" * 65)
+
+    labs = ListarLaboratorios()
+    if not labs:
+        print("Nenhum laboratório cadastrado no banco de dados.")
+        return
+
+    print("\nSelecione o laboratório associado a esta estação:")
+    for lab in labs:
+        print(f"  [{lab['id']}] {lab['nome']}")
+
+    try:
+        id_lab = int(input("\nID do laboratório: ").strip())
+    except ValueError:
+        print("ID inválido.")
+        return
+
+    lab_escolhido = next((l for l in labs if l["id"] == id_lab), None)
+    if not lab_escolhido:
+        print("Laboratório não encontrado.")
+        return
+
+    print(f"\nEstação vinculada ao: {lab_escolhido['nome']}")
+    print("Aguardando leitura do código de barras... (Ctrl+C para encerrar)\n")
 
     while True:
         try:
-            codigo = input("\n[Aguardando Leitura] Informe o Código de Barras: ").strip()
-
+            codigo = input("[Leitor] Código de Barras: ").strip()
             if not codigo:
                 continue
 
-            # Busca diretamente no sistema sem validar a formatação/EAN-13
-            usuario = BuscarUsuarioPorCodigoBarras(codigo)
-
-            if usuario:
-                nome_usuario = usuario[1]
-                print(f" [ACESSO PERMITIDO] Usuário Encontrado: {nome_usuario}")
+            autorizado, detalhe = validar_acesso_fisico_codigo(codigo, id_lab)
+            if autorizado:
+                print(f"  [ACESSO PERMITIDO] {detalhe}")
                 AcenderLuz(True, segundos=3)
             else:
-                print(f" [ACESSO NEGADO] Código de barras '{codigo}' não cadastrado!")
+                print(f"  [ACESSO NEGADO] {detalhe}")
                 AcenderLuz(False, segundos=3)
 
         except KeyboardInterrupt:
-            print("\n\nSaindo do sistema de verificação por terminal...")
+            print("\nEncerrando estação de verificação...")
             sys.exit(0)
         except Exception as e:
-            print(f"Ocorreu um erro durante o processamento: {e}")
+            print(f"Erro ao processar leitura: {e}")
 
 
 if __name__ == "__main__":

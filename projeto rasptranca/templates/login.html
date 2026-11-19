@@ -1,19 +1,20 @@
 {% extends "base.html" %}
-{% block titulo %}Login - RaspTranca{% endblock %}
+{% block titulo %}{{ t('login_titulo') }} - {{ t('app_titulo') }}{% endblock %}
 
 {% block conteudo %}
-    <h1>Entrar</h1>
-    <h2>Acesse com seu email e senha para fazer reservas</h2>
+    <h1>{{ t('login_titulo') }}</h1>
+    <h2>{{ t('login_subtitulo') }}</h2>
 
     <form action="{{ url_for('login') }}" method="POST">
-        <input type="email" name="email" placeholder="Email" required autofocus>
-        <input type="password" name="senha" placeholder="Senha" required>
-        <button type="submit">Entrar</button>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="email" name="email" placeholder="{{ t('email') }}" required autofocus>
+        <input type="password" name="senha" placeholder="{{ t('senha') }}" required>
+        <button type="submit">{{ t('login_titulo') }}</button>
     </form>
 
     {% if erro %}
         <div class="resultado invalida">{{ erro }}</div>
     {% endif %}
 
-    <p class="link-extra">Não tem conta? O <strong>administrador</strong> cadastra novos usuários pelo painel ADM.</p>
+    <p class="link-extra">{{ t('login_aviso_conta') }}</p>
 {% endblock %}

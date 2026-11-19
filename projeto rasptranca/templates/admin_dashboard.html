@@ -1,22 +1,50 @@
 {% extends "base.html" %}
-{% block titulo %}Painel ADMIN{% endblock %}
+{% block titulo %}{{ t('adm_painel') }}{% endblock %}
 
 {% block conteudo %}
-    <h1>Painel do Administrador</h1>
-    <h2>Gerencie usuarios, laboratorios e reservas</h2>
+    <h1>{{ t('adm_painel') }}</h1>
+    <h2>{{ t('adm_subtitulo') }}</h2>
 
-    <div class="cards">
-        <a class="card" href="{{ url_for('admin_usuarios') }}">
-            <div class="card-numero">{{ qtd_usuarios }}</div>
-            <div class="card-rotulo">Usuarios</div>
+    <div class="cards" style="display:flex; gap:1.25rem; flex-wrap:wrap; margin-bottom:2rem;">
+        <a class="card-filtro" href="{{ url_for('admin_usuarios') }}" style="flex:1; min-width:200px;">
+            <div style="font-size:2rem; font-weight:700;">{{ qtd_usuarios }}</div>
+            <div>{{ t('adm_usuarios') }}</div>
         </a>
-        <a class="card" href="{{ url_for('admin_laboratorios') }}">
-            <div class="card-numero">{{ qtd_labs }}</div>
-            <div class="card-rotulo">Laboratorios</div>
+        <a class="card-filtro" href="{{ url_for('admin_laboratorios') }}" style="flex:1; min-width:200px;">
+            <div style="font-size:2rem; font-weight:700;">{{ qtd_labs }}</div>
+            <div>{{ t('adm_labs') }}</div>
         </a>
-        <a class="card" href="{{ url_for('admin_reservas') }}">
-            <div class="card-numero">{{ qtd_reservas }}</div>
-            <div class="card-rotulo">Reservas</div>
+        <a class="card-filtro" href="{{ url_for('admin_reservas') }}" style="flex:1; min-width:200px;">
+            <div style="font-size:2rem; font-weight:700;">{{ qtd_reservas }}</div>
+            <div>{{ t('adm_reservas') }}</div>
         </a>
+    </div>
+
+    <div class="card-filtro">
+        <h2>{{ t('adm_auditoria') }}</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>{{ t('data_hora') }}</th>
+                    <th>{{ t('usuario') }}</th>
+                    <th>{{ t('acao') }}</th>
+                    <th>{{ t('detalhes') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log['criado_em'] }}</td>
+                    <td>{{ log['admin_nome'] }}</td>
+                    <td><code>{{ log['acao'] }}</code></td>
+                    <td>{{ log['detalhes'] }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="text-align:center;">-</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 {% endblock %}

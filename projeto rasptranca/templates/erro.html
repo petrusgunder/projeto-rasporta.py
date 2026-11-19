@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titulo %}Erro {{ codigo }}{% endblock %}
+
+{% block conteudo %}
+    <div class="card-filtro" style="text-align:center; max-width:540px; margin:2rem auto;">
+        <h1>{{ codigo }}</h1>
+        <p>{{ mensagem }}</p>
+        <p><a href="{{ url_for('home') }}" class="btn-primary">{{ t('nav_inicio') }}</a></p>
+    </div>
+{% endblock %}

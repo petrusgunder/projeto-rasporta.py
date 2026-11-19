@@ -1,32 +1,34 @@
 {% extends "base.html" %}
-{% block titulo %}Histórico de Reservas{% endblock %}
+{% block titulo %}{{ t('historico_titulo') }}{% endblock %}
 
 {% block conteudo %}
-    <h1>Histórico de Reservas</h1>
-    <p class="link-extra"><a href="{{ url_for('config') }}">← Voltar para Minha Conta</a></p>
+    <h1>{{ t('historico_titulo') }}</h1>
+    <p><a href="{{ url_for('config') }}">{{ t('voltar_conta') }}</a></p>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Data</th>
-                <th>Período</th>
-                <th>Laboratório</th>
-                <th>Motivo</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for reserva in reservas %}
-            <tr>
-                <td>{{ reserva[1] }}</td>
-                <td>{{ reserva[2] }} ({{ periodos.get(reserva[2], '') }})</td>
-                <td>{{ reserva[4] }}</td>
-                <td>{{ reserva[3] or '-' }}</td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="4" style="text-align: center;">Nenhuma reserva passada.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="planilha-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>{{ t('data') }}</th>
+                    <th>{{ t('periodo') }}</th>
+                    <th>{{ t('th_laboratorio') }}</th>
+                    <th>{{ t('motivo') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reserva in reservas %}
+                <tr>
+                    <td>{{ reserva['data_reserva'] }}</td>
+                    <td>{{ t('periodo') }} {{ reserva['periodo'] }} ({{ periodos.get(reserva['periodo'], '') }})</td>
+                    <td>{{ reserva['lab_nome'] }}</td>
+                    <td>{{ reserva['descricao'] or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" style="text-align: center;">{{ t('sem_reservas_passadas') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 {% endblock %}

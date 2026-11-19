@@ -1,60 +1,65 @@
 {% extends "base.html" %}
-{% block titulo %}Minha Conta{% endblock %}
+{% block titulo %}{{ t('conta_titulo') }}{% endblock %}
 
 {% block conteudo %}
-    <h1>Minha Conta</h1>
+    <h1>{{ t('conta_titulo') }}</h1>
 
-    <section class="bloco-config">
-        <h2>Perfil</h2>
-        <div class="perfil">
-            <div class="perfil-avatar">{{ usuario[1][0] | upper }}</div>
-            <div class="perfil-info">
-                <p><strong>{{ usuario[1] }}</strong>{% if usuario[3] %} <span class="badge badge-admin">ADM</span>{% endif %}</p>
-                <p>{{ usuario[2] }}</p>
-            </div>
-        </div>
-        <p><a href="{{ url_for('logout') }}" class="botao-sair">Sair da conta</a></p>
+    <section class="card-filtro">
+        <h2>{{ t('perfil') }}</h2>
+        <p>
+            <strong>{{ usuario['nome'] }}</strong>
+            {% if usuario['nivel_admin'] == 'super_admin' %}
+                <span class="badge badge-admin">{{ t('nivel_super') }}</span>
+            {% elif usuario['nivel_admin'] == 'admin' %}
+                <span class="badge badge-admin">{{ t('nivel_admin') }}</span>
+            {% endif %}
+        </p>
+        <p>{{ usuario['email'] }} · {{ t('codigo_barras') }}: <strong>{{ usuario['codigo_barras'] or t('nao_cadastrado') }}</strong></p>
     </section>
 
-    <section class="bloco-config largo">
-        <h2>Minhas Reservas</h2>
+    <section class="card-filtro">
+        <h2>{{ t('minhas_reservas') }}</h2>
         {% if reservas %}
-            <div class="lista-reservas">
-                {% for reserva in reservas %}
-                    <div class="reserva-item">
-                        <div class="reserva-info">
-                            <strong>{{ reserva[4] }}</strong>
-                            <span>{{ reserva[1] }} · Período {{ reserva[2] }} ({{ periodos.get(reserva[2], '') }})</span>
-                            {% if reserva[3] %}<small>Motivo: {{ reserva[3] }}</small>{% endif %}
-                        </div>
-                        <a class="botao-cancelar"
-                           href="{{ url_for('cancelar_reserva', id_reserva=reserva[0]) }}"
-                           onclick="return confirm('Cancelar esta reserva?')">Cancelar</a>
-                    </div>
-                {% endfor %}
-            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>{{ t('data') }}</th>
+                        <th>{{ t('periodo') }}</th>
+                        <th>{{ t('th_laboratorio') }}</th>
+                        <th>{{ t('motivo') }}</th>
+                        <th>{{ t('acoes') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reserva in reservas %}
+                    <tr>
+                        <td>{{ reserva['data_reserva'] }}</td>
+                        <td>{{ t('periodo') }} {{ reserva['periodo'] }} ({{ periodos.get(reserva['periodo'], '') }})</td>
+                        <td>{{ reserva['lab_nome'] }} {% if reserva['serie_id'] %}<span class="badge badge-reservado">{{ t('serie_badge') }}</span>{% endif %}</td>
+                        <td>{{ reserva['descricao'] or '-' }}</td>
+                        <td style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                            <form action="{{ url_for('cancelar_reserva', id_reserva=reserva['id']) }}" method="POST">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="next" value="{{ url_for('config') }}">
+                                <button type="submit" class="btn-hoje" onclick="return confirm('{{ t('confirmar_cancelar') }}')">{{ t('cancelar') }}</button>
+                            </form>
+                            {% if reserva['serie_id'] %}
+                            <form action="{{ url_for('cancelar_serie', serie_id=reserva['serie_id']) }}" method="POST">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn-hoje" onclick="return confirm('{{ t('confirmar_cancelar_serie') }}')">{{ t('cancelar_serie') }}</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         {% else %}
-            <p class="link-extra">Você ainda não tem reservas futuras.</p>
+            <p>{{ t('sem_reservas_futuras') }}</p>
         {% endif %}
-        <p class="link-extra"><a href="{{ url_for('historico') }}">Ver histórico de reservas passadas</a></p>
-        <p class="link-extra"><a href="{{ url_for('home') }}">Fazer uma nova reserva</a></p>
+        <p style="margin-top: 1rem;">
+            <a href="{{ url_for('historico') }}" class="link-acao-secundario">{{ t('ver_historico') }}</a>
+            <a href="{{ url_for('home') }}" class="link-acao-secundario">{{ t('fazer_nova_reserva') }}</a>
+        </p>
     </section>
-
-    <section class="bloco-config">
-        <h2>Aparência</h2>
-        <p>Alterna entre modo claro e escuro pelo botão <strong>🌙/☀️</strong> no topo da página.</p>
-    </section>
-
-    {% if usuario_eh_admin %}
-    <section class="bloco-config">
-        <h2>Administração</h2>
-        <p>Funções exclusivas do administrador:</p>
-        <nav>
-            <a href="{{ url_for('admin_dashboard') }}">Painel ADM</a>
-            <a href="{{ url_for('admin_usuarios') }}">Editor de Usuários</a>
-            <a href="{{ url_for('admin_laboratorios') }}">Editor de Laboratórios</a>
-            <a href="{{ url_for('admin_reservas') }}">Reservas</a>
-        </nav>
-    </section>
-    {% endif %}
 {% endblock %}

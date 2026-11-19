@@ -1,114 +1,183 @@
 {% extends "base.html" %}
-{% block titulo %}Início - Reserva de Laboratórios{% endblock %}
+{% block titulo %}{{ t('nav_inicio') }} - {{ t('app_titulo') }}{% endblock %}
 
 {% block conteudo %}
-<div class="page-container">
-    <header class="page-hero">
-        <span class="hero-subtitle">Sistema de Agendamento</span>
-        <h1 class="hero-title">Reserve seu Laboratório</h1>
-        <p class="hero-description">Escolha a data desejada para consultar e gerenciar os horários disponíveis.</p>
-    </header>
+<header class="page-hero">
+    <span class="hero-subtitle">{{ t('hero_subtitulo') }}</span>
+    <h1 class="hero-title">{{ t('hero_titulo') }}</h1>
+    <p class="hero-description">{{ t('hero_desc') }}</p>
+</header>
 
-    <div class="card-filtro">
-        <form action="{{ url_for('home') }}" method="GET" class="form-filtro-data">
-            <div class="grupo-input-data">
-                <label for="data" class="label-data">Data da Consulta</label>
-                <div class="input-wrapper">
-                    <input type="date" name="data" id="data" value="{{ data }}" min="{{ hoje }}" required class="input-data">
-                    {% if data != hoje %}
-                        <a href="{{ url_for('home') }}" class="btn-hoje" title="Ir para o dia de hoje">Hoje</a>
+<div class="card-filtro">
+    <form action="{{ url_for('home') }}" method="GET" class="form-filtro-data">
+        <div class="grupo-input-data">
+            <label for="data" class="label-data">{{ t('data_consulta') }}</label>
+            <div class="input-wrapper">
+                <input type="date" name="data" id="data" value="{{ data }}" min="{{ hoje }}" required class="input-data">
+                {% if data != hoje %}
+                    <a href="{{ url_for('home') }}" class="btn-hoje">{{ t('hoje') }}</a>
+                {% endif %}
+            </div>
+        </div>
+        <button type="submit" class="btn-primary">{{ t('ver_disponibilidade') }}</button>
+    </form>
+</div>
+
+<div class="legenda-container">
+    <span class="legenda-item"><span class="badge badge-livre">{{ t('legenda_livre') }}</span></span>
+    <span class="legenda-item"><span class="badge badge-ocupado">{{ t('legenda_ocupado') }}</span></span>
+    <span class="legenda-item"><span class="badge badge-reservado">{{ t('legenda_reservado') }}</span></span>
+    <small style="color: var(--texto-suave);">{{ t('aviso_intervalo_noturno') }}</small>
+</div>
+
+<div class="planilha-card">
+    <div class="planilha-wrapper">
+        <table class="planilha">
+            <thead>
+                <tr>
+                    <th class="th-lab">{{ t('th_laboratorio') }}</th>
+                    {% for num, horario in periodos.items() %}
+                        <th>
+                            <span class="periodo-num">{{ t('periodo') }} {{ num }}</span>
+                            <small class="periodo-hora">{{ horario }}</small>
+                        </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for lab in labs %}
+                <tr>
+                    <td class="lab-nome">
+                        <span>{{ lab['nome'] }}</span>
+                        {% if lab['capacidade'] %}<br><small style="color: var(--texto-suave); font-weight:400;">Cap.: {{ lab['capacidade'] }}</small>{% endif %}
+                    </td>
+                    {% set id_lab = lab['id'] %}
+                    {% for num in periodos.keys() %}
+                        {% set info = grade[id_lab][num] %}
+                        {% if info %}
+                            {% if usuario_id_sessao and info['id_usuario'] == usuario_id_sessao %}
+                                <td class="cel res minhas">
+                                    <span class="badge badge-reservado">{{ t('reservado') }}</span>
+                                    {% if info['descricao'] %}<div class="cel-detalhe"><small>{{ info['descricao'] }}</small></div>{% endif %}
+                                    <form action="{{ url_for('cancelar_reserva', id_reserva=info['id_reserva']) }}" method="POST" style="margin-top:4px; justify-content:center;">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <input type="hidden" name="next" value="{{ url_for('home', data=data) }}">
+                                        <button type="submit" class="btn-hoje" style="padding:0.2rem 0.5rem; font-size:0.7rem;" onclick="return confirm('{{ t('confirmar_cancelar') }}')">{{ t('cancelar') }}</button>
+                                    </form>
+                                </td>
+                            {% else %}
+                                <td class="cel res ocupado">
+                                    <span class="badge badge-ocupado">{{ t('ocupado') }}</span>
+                                    {% if usuario_sessao %}
+                                        <div class="cel-detalhe">
+                                            <strong>{{ info['responsavel_nome'] }}</strong>
+                                            {% if info['descricao'] %}<small>{{ info['descricao'] }}</small>{% endif %}
+                                            <a href="mailto:{{ info['responsavel_email'] }}?subject=Reserva%20{{ lab['nome'] }}%20({{ data }})" class="link-contato">{{ t('contatar_email') }}</a>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        {% elif usuario_sessao %}
+                            <td class="cel res livre">
+                                <form class="reserva-inline" action="{{ url_for('reservar') }}" method="POST">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="laboratorio" value="{{ id_lab }}">
+                                    <input type="hidden" name="data" value="{{ data }}">
+                                    <input type="hidden" name="periodo" value="{{ num }}">
+                                    <button type="button" class="botao-reservar" onclick="alternarMotivo(this)">{{ t('reservar') }}</button>
+                                    <span class="motivo-inline" style="display: none;">
+                                        <input type="text" name="descricao" placeholder="{{ t('motivo_opcional') }}" maxlength="200">
+                                        <button type="submit" class="botao-confirmar">{{ t('confirmar') }}</button>
+                                    </span>
+                                </form>
+                            </td>
+                        {% else %}
+                            <td class="cel res livre">
+                                <span class="badge badge-livre">{{ t('livre') }}</span>
+                            </td>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{{ periodos|length + 1 }}" class="sem-registros">{{ t('sem_labs') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if usuario_sessao %}
+    <div class="card-filtro" style="margin-top: 2rem;">
+        <h2>{{ t('rec_titulo') }}</h2>
+        <p class="hero-description" style="margin-bottom: 1rem;">{{ t('rec_subtitulo') }}</p>
+
+        {% if recorrencia_pendente %}
+            <div class="resultado invalida" style="margin-bottom: 1rem;">
+                <strong>{{ t('rec_resumo_titulo') }} — {{ recorrencia_pendente['laboratorio_nome'] }} ({{ t('periodo') }} {{ recorrencia_pendente['periodo'] }})</strong>
+                <p style="margin: 0.4rem 0;">{{ t('rec_datas_disponiveis') }} ({{ recorrencia_pendente['disponiveis']|length }}): {{ recorrencia_pendente['disponiveis'] | join(', ') or '-' }}</p>
+                <p style="margin: 0.4rem 0;">{{ t('rec_datas_conflitantes') }} ({{ recorrencia_pendente['conflitantes']|length }}):
+                    {% for c in recorrencia_pendente['conflitantes'] %}
+                        <span>{{ c['data'] }} ({{ c['responsavel'] }}){% if not loop.last %}, {% endif %}</span>
+                    {% endfor %}
+                </p>
+                <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:0.75rem;">
+                    {% if recorrencia_pendente['disponiveis'] %}
+                        <form action="{{ url_for('reservar_recorrente') }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="etapa" value="confirmar">
+                            <input type="hidden" name="modo" value="apenas_disponiveis">
+                            <input type="hidden" name="laboratorio" value="{{ recorrencia_pendente['laboratorio_id'] }}">
+                            <input type="hidden" name="dia_semana" value="{{ recorrencia_pendente['dia_semana'] }}">
+                            <input type="hidden" name="data_inicio" value="{{ recorrencia_pendente['data_inicio'] }}">
+                            <input type="hidden" name="data_fim" value="{{ recorrencia_pendente['data_fim'] }}">
+                            <input type="hidden" name="periodo" value="{{ recorrencia_pendente['periodo'] }}">
+                            <input type="hidden" name="descricao" value="{{ recorrencia_pendente['descricao'] }}">
+                            <button type="submit" class="btn-primary">{{ t('rec_confirmar_livres') }} ({{ recorrencia_pendente['disponiveis']|length }})</button>
+                        </form>
                     {% endif %}
+                    <a href="{{ url_for('home') }}" class="btn-hoje">{{ t('rec_cancelar_operacao') }}</a>
                 </div>
             </div>
-            <button type="submit" class="btn-primary">Ver disponibilidade</button>
+        {% endif %}
+
+        <form action="{{ url_for('reservar_recorrente') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="etapa" value="verificar">
+            <select name="laboratorio" required>
+                {% for lab in labs %}
+                    <option value="{{ lab['id'] }}">{{ lab['nome'] }}</option>
+                {% endfor %}
+            </select>
+            <select name="dia_semana" required>
+                {% for dia in t('dias_semana') %}
+                    <option value="{{ loop.index0 }}">{{ dia }}</option>
+                {% endfor %}
+            </select>
+            <input type="date" name="data_inicio" min="{{ hoje }}" value="{{ data }}" required title="{{ t('rec_data_inicio') }}">
+            <input type="date" name="data_fim" min="{{ hoje }}" required title="{{ t('rec_data_fim') }}">
+            <select name="periodo" required>
+                {% for num, horario in periodos.items() %}
+                    <option value="{{ num }}">{{ t('periodo') }} {{ num }} ({{ horario }})</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="descricao" placeholder="{{ t('motivo_opcional') }}" maxlength="200">
+            <button type="submit" class="btn-primary">{{ t('rec_verificar') }}</button>
         </form>
     </div>
 
-    {% if data %}
-        <div class="legenda-container">
-            <span class="legenda-item"><span class="badge badge-livre">Livre</span></span>
-            <span class="legenda-item"><span class="badge badge-ocupado">Ocupado</span></span>
-            <span class="legenda-item"><span class="badge badge-reservado">Reservado por você</span></span>
+    <div class="rodape-acoes">
+        <a href="{{ url_for('config') }}" class="link-acao-secundario">{{ t('minhas_reservas') }} &rarr;</a>
+    </div>
+{% else %}
+    <div class="rodape-acoes">
+        <div class="box-aviso">
+            <span>{{ t('deseja_reservar') }}</span>
+            <a href="{{ url_for('login') }}" class="link-destaque">{{ t('entre_conta') }}</a>
         </div>
-
-        <div class="planilha-card">
-            <div class="planilha-wrapper">
-                <table class="planilha">
-                    <thead>
-                        <tr>
-                            <th class="th-lab">Laboratório</th>
-                            {% for num in periodos.keys() %}
-                                <th>
-                                    <span class="periodo-num">{{ num }}</span>
-                                    <small class="periodo-hora">{{ periodos[num] }}</small>
-                                </th>
-                            {% endfor %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for lab in labs %}
-                        <tr>
-                            <td class="lab-nome">
-                                <span>{{ lab[1] }}</span>
-                            </td>
-                            {% set id_lab = lab[0] %}
-                            {% for num in periodos.keys() %}
-                                {% if grade[id_lab][num] %}
-                                    {% if usuario_sessao and id_lab in minhas_reservas and num in minhas_reservas[id_lab] %}
-                                        <td class="cel res minhas">
-                                            <span class="badge badge-reservado">Reservado</span>
-                                        </td>
-                                    {% else %}
-                                        <td class="cel res ocupado">
-                                            <span class="badge badge-ocupado">Ocupado</span>
-                                        </td>
-                                    {% endif %}
-                                {% elif usuario_sessao %}
-                                    <td class="cel res livre">
-                                        <form class="reserva-inline" action="{{ url_for('reservar') }}" method="POST">
-                                            <input type="hidden" name="laboratorio" value="{{ id_lab }}">
-                                            <input type="hidden" name="data" value="{{ data }}">
-                                            <input type="hidden" name="periodo" value="{{ num }}">
-                                            <button type="button" class="botao-reservar" onclick="alternarMotivo(this)">Reservar</button>
-                                            <span class="motivo-inline" style="display: none;">
-                                                <input type="text" name="descricao" placeholder="Motivo (opcional)">
-                                                <button type="submit" class="botao-confirmar">Confirmar</button>
-                                            </span>
-                                        </form>
-                                    </td>
-                                {% else %}
-                                    <td class="cel res livre">
-                                        <span class="badge badge-livre">Livre</span>
-                                    </td>
-                                {% endif %}
-                            {% endfor %}
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="9" class="sem-registros">Nenhum laboratório cadastrado no momento.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="rodape-acoes">
-            {% if usuario_sessao %}
-                <a href="{{ url_for('config') }}" class="link-acao-secundario">Minhas Reservas &rarr;</a>
-            {% else %}
-                <div class="box-aviso">
-                    <span>Deseja efetuar uma reserva?</span>
-                    <a href="{{ url_for('login') }}" class="link-destaque">Entre na sua conta</a>
-                </div>
-            {% endif %}
-        </div>
-    {% else %}
-        <div class="box-aviso box-aviso-central">
-            <p>Selecione uma data acima para visualizar o mapa de disponibilidade dos laboratórios.</p>
-        </div>
-    {% endif %}
-</div>
+    </div>
+{% endif %}
 
 <script>
     function alternarMotivo(botao) {
@@ -116,7 +185,7 @@
         var area = form.querySelector('.motivo-inline');
         var oculto = area.style.display === 'none' || area.style.display === '';
         area.style.display = oculto ? 'flex' : 'none';
-        botao.textContent = oculto ? 'Fechar' : 'Reservar';
+        botao.textContent = oculto ? '{{ t("fechar") }}' : '{{ t("reservar") }}';
     }
 </script>
 {% endblock %}

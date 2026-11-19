@@ -1,70 +1,81 @@
 {% extends "base.html" %}
-{% block titulo %}ADM - Editor de Usuários{% endblock %}
+{% block titulo %}ADM - {{ t('adm_usuarios') }}{% endblock %}
 
 {% block conteudo %}
-    <p class="link-extra"><a href="{{ url_for('admin_dashboard') }}">← Voltar ao painel</a></p>
+    <p><a href="{{ url_for('admin_dashboard') }}">{{ t('voltar_painel') }}</a></p>
+    <h1>{{ t('adm_usuarios') }}</h1>
 
-    <h1>Editor de Usuários</h1>
-    <h2>Cadastre e gerencie quem pode acessar os laboratórios</h2>
+    <div class="card-filtro">
+        <h2>{{ t('cadastrar_usuario') }}</h2>
+        <form action="{{ url_for('admin_usuarios') }}" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="acao" value="cadastrar">
+            <input type="text" name="nome" placeholder="{{ t('nome') }}" required>
+            <input type="email" name="email" placeholder="{{ t('email') }}" required>
+            <input type="password" name="senha" placeholder="{{ t('senha') }} (min 8)" minlength="8" required>
+            <input type="text" name="codigo_barras" placeholder="{{ t('codigo_barras') }}">
+            <select name="nivel_admin">
+                <option value="usuario">{{ t('nivel_comum') }}</option>
+                {% if usuario_eh_super_admin %}
+                    <option value="admin">{{ t('nivel_admin') }}</option>
+                    <option value="super_admin">{{ t('nivel_super') }}</option>
+                {% endif %}
+            </select>
+            <button type="submit">{{ t('cadastrar') }}</button>
+        </form>
+    </div>
 
-    {% if mensagem %}
-        <div class="resultado valida">{{ mensagem }}</div>
-    {% endif %}
-
-    <h2>Cadastrar Novo Usuário</h2>
-    <form action="{{ url_for('admin_usuarios') }}" method="POST">
-        <input type="hidden" name="acao" value="cadastrar">
-        <input type="text" name="nome" placeholder="Nome" required>
-        <input type="email" name="email" placeholder="Email" required>
-        <input type="password" name="senha" placeholder="Senha" required>
-        <input type="text" name="codigo_barras" placeholder="Código de barras">
-        <label><input type="checkbox" name="is_admin" value="1"> Administrador</label>
-        <button type="submit">Cadastrar</button>
-    </form>
-
-    <hr>
-
-    <h2>Lista de Usuários</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Nome</th>
-                <th>Email</th>
-                <th>Código de barras</th>
-                <th>Admin</th>
-                <th>Ações</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for usuario in usuarios %}
-            <tr>
-                <form action="{{ url_for('admin_usuarios') }}" method="POST">
-                    <input type="hidden" name="acao" value="editar">
-                    <input type="hidden" name="id_usuario" value="{{ usuario[0] }}">
-                    <td>{{ usuario[0] }}</td>
-                    <td><input type="text" name="nome" value="{{ usuario[1] }}"></td>
-                    <td><input type="email" name="email" value="{{ usuario[2] }}"></td>
-                    <td><input type="text" name="codigo_barras" value="{{ usuario[4] or '' }}"></td>
-                    <td><input type="checkbox" name="is_admin" value="1" {% if usuario[3] %}checked{% endif %}></td>
-                    <td><button type="submit">Salvar</button></td>
-                </form>
-            </tr>
-            <tr>
-                <form action="{{ url_for('admin_usuarios') }}" method="POST">
-                    <input type="hidden" name="acao" value="excluir">
-                    <input type="hidden" name="id_usuario" value="{{ usuario[0] }}">
-                    <td colspan="6" class="acoes-excluir">
-                        <button type="submit" class="botao-excluir"
-                                onclick="return confirm('Excluir este usuário? (remove as reservas dele)')">Excluir</button>
+    <div class="card-filtro">
+        <h2>{{ t('lista_usuarios') }}</h2>
+        {% for usuario in usuarios %}
+            <form id="form-editar-usr-{{ usuario['id'] }}" action="{{ url_for('admin_usuarios') }}" method="POST" style="display:none;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="acao" value="editar">
+                <input type="hidden" name="id_usuario" value="{{ usuario['id'] }}">
+            </form>
+        {% endfor %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>{{ t('nome') }}</th>
+                    <th>{{ t('email') }}</th>
+                    <th>{{ t('codigo_barras') }}</th>
+                    <th>{{ t('nivel_acesso') }}</th>
+                    <th>{{ t('acoes') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                <tr>
+                    <td>{{ usuario['id'] }}</td>
+                    <td><input form="form-editar-usr-{{ usuario['id'] }}" type="text" name="nome" value="{{ usuario['nome'] }}" required></td>
+                    <td><input form="form-editar-usr-{{ usuario['id'] }}" type="email" name="email" value="{{ usuario['email'] }}" required></td>
+                    <td><input form="form-editar-usr-{{ usuario['id'] }}" type="text" name="codigo_barras" value="{{ usuario['codigo_barras'] or '' }}"></td>
+                    <td>
+                        <select form="form-editar-usr-{{ usuario['id'] }}" name="nivel_admin" {% if not usuario_eh_super_admin %}disabled{% endif %}>
+                            <option value="usuario" {% if usuario['nivel_admin'] == 'usuario' %}selected{% endif %}>{{ t('nivel_comum') }}</option>
+                            <option value="admin" {% if usuario['nivel_admin'] == 'admin' %}selected{% endif %}>{{ t('nivel_admin') }}</option>
+                            <option value="super_admin" {% if usuario['nivel_admin'] == 'super_admin' %}selected{% endif %}>{{ t('nivel_super') }}</option>
+                        </select>
+                        {% if not usuario_eh_super_admin %}
+                            <input form="form-editar-usr-{{ usuario['id'] }}" type="hidden" name="nivel_admin" value="{{ usuario['nivel_admin'] }}">
+                        {% endif %}
                     </td>
-                </form>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="6" style="text-align: center;">Nenhum usuário cadastrado.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    <td>
+                        <div style="display:flex; gap:0.4rem; align-items:center;">
+                            <button form="form-editar-usr-{{ usuario['id'] }}" type="submit">{{ t('salvar') }}</button>
+                            <form action="{{ url_for('admin_usuarios') }}" method="POST" style="margin:0;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="acao" value="excluir">
+                                <input type="hidden" name="id_usuario" value="{{ usuario['id'] }}">
+                                <button type="submit" class="btn-hoje" onclick="return confirm('{{ t('excluir') }}?')">{{ t('excluir') }}</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 {% endblock %}

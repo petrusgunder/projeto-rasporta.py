@@ -1,9 +1,7 @@
-##pastas
-
 /.venv
 /__pycache__
-
-##arquivos
-
+/backups
 banco.db
-
+banco.db-wal
+banco.db-shm
+.secret_key

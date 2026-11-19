@@ -1,39 +1,50 @@
 {% extends "base.html" %}
-{% block titulo %}ADM - Reservas{% endblock %}
+{% block titulo %}ADM - {{ t('adm_reservas') }}{% endblock %}
 
 {% block conteudo %}
-    <h1>Todas as Reservas</h1>
-    <p class="link-extra"><a href="{{ url_for('admin_dashboard') }}">Voltar ao painel</a></p>
+    <p><a href="{{ url_for('admin_dashboard') }}">{{ t('voltar_painel') }}</a></p>
+    <h1>{{ t('todas_reservas') }}</h1>
 
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Data</th>
-                <th>Periodo</th>
-                <th>Laboratorio</th>
-                <th>Usuario</th>
-                <th>Motivo</th>
-                <th>Acao</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for reserva in reservas %}
-            <tr>
-                <td>{{ reserva[0] }}</td>
-                <td>{{ reserva[1] }}</td>
-                <td>{{ reserva[2] }} ({{ periodos.get(reserva[2], '') }})</td>
-                <td>{{ reserva[4] }}</td>
-                <td>{{ reserva[5] }}</td>
-                <td>{{ reserva[3] or '-' }}</td>
-                <td><a href="{{ url_for('cancelar_reserva', id_reserva=reserva[0]) }}"
-                       onclick="return confirm('Cancelar esta reserva?')">Cancelar</a></td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="7" style="text-align: center;">Nenhuma reserva feita.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="planilha-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>{{ t('data') }}</th>
+                    <th>{{ t('periodo') }}</th>
+                    <th>{{ t('th_laboratorio') }}</th>
+                    <th>{{ t('responsavel') }}</th>
+                    <th>{{ t('email') }}</th>
+                    <th>{{ t('codigo_barras') }}</th>
+                    <th>{{ t('motivo') }}</th>
+                    <th>{{ t('acoes') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reserva in reservas %}
+                <tr>
+                    <td>{{ reserva['id'] }}</td>
+                    <td>{{ reserva['data_reserva'] }}</td>
+                    <td>{{ t('periodo') }} {{ reserva['periodo'] }} ({{ periodos.get(reserva['periodo'], '') }})</td>
+                    <td>{{ reserva['lab_nome'] }} {% if reserva['serie_id'] %}<span class="badge badge-reservado">{{ t('serie_badge') }}</span>{% endif %}</td>
+                    <td>{{ reserva['usuario_nome'] }}</td>
+                    <td><a href="mailto:{{ reserva['usuario_email'] }}">{{ reserva['usuario_email'] }}</a></td>
+                    <td>{{ reserva['usuario_codigo'] or '-' }}</td>
+                    <td>{{ reserva['descricao'] or '-' }}</td>
+                    <td>
+                        <form action="{{ url_for('cancelar_reserva', id_reserva=reserva['id']) }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="next" value="{{ url_for('admin_reservas') }}">
+                            <button type="submit" class="btn-hoje" onclick="return confirm('{{ t('confirmar_cancelar') }}')">{{ t('cancelar') }}</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" style="text-align: center;">-</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 {% endblock %}
