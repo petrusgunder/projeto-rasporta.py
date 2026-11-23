@@ -1,0 +1,8 @@
+[Unit]
+Description=Rasporta - Backup Automatico a Quente do SQLite
+
+[Service]
+Type=oneshot
+User=rasporta
+Group=rasporta
+ExecStart=/opt/rasporta/scripts/backup_banco.sh

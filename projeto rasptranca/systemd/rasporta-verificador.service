@@ -1,0 +1,26 @@
+[Unit]
+Description=Rasporta - Servico Fisico de Verificacao por Codigo de Barras e GPIO
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rasporta
+Group=rasporta
+SupplementaryGroups=gpio input
+WorkingDirectory=/opt/rasporta
+EnvironmentFile=/etc/rasporta/estacao.env
+ExecStart=/opt/rasporta/.venv-verificador/bin/python /opt/rasporta/codigo_de_verificacao.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+# Endurecimento de seguranca do servico
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

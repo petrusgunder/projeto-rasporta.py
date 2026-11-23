@@ -1,24 +1,31 @@
 import os
 from datetime import timedelta
 from flask import Flask, render_template, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 from banco_de_dados import BASE_DIR
 from config_sistema import obter_secret_key
 from usuarios import inicializar_admin_via_ambiente
 from agenda import CriarLabsPadrao
+from api_verificacao import inicializar_estacao_via_ambiente
 from traducoes import traduzir
 
 app = Flask(__name__)
 app.secret_key = obter_secret_key(BASE_DIR)
+
+# Respeita cabecalhos X-Forwarded-For e X-Forwarded-Proto do Caddy / Cloudflare Tunnel
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("RASPORTA_HTTPS", "0") == "1",
     PERMANENT_SESSION_LIFETIME=timedelta(hours=2),
+    MAX_CONTENT_LENGTH=64 * 1024,  # 64 KB max payload
 )
 
 inicializar_admin_via_ambiente()
 CriarLabsPadrao()
+inicializar_estacao_via_ambiente()
 
 from routes import *  # noqa: E402, F401
 

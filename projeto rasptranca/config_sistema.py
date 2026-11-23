@@ -8,9 +8,6 @@ from zoneinfo import ZoneInfo
 
 FUSO_CAMPUS = ZoneInfo("America/Sao_Paulo")
 
-# Estrutura detalhada dos periodos academicos.
-# O turno noturno (19:00 as 22:00) possui intervalo oficial de 20 minutos (20:20 - 20:40),
-# dividido em dois blocos efetivos de aula/reserva: Periodo 8 (19:00 - 20:20) e Periodo 9 (20:40 - 22:00).
 CONFIG_PERIODOS = {
     1: {"turno": "matutino", "inicio": "08:00", "fim": "08:55"},
     2: {"turno": "matutino", "inicio": "09:00", "fim": "09:50"},
@@ -33,17 +30,27 @@ PERIODOS = {
 }
 
 
+def obter_diretorio_dados(base_dir: str) -> str:
+    """Retorna o diretorio persistente de dados (/data no Docker ou raiz local)."""
+    data_dir = os.environ.get("RASPORTA_DATA_DIR")
+    if data_dir:
+        os.makedirs(data_dir, exist_ok=True)
+        return data_dir
+    return base_dir
+
+
 def obter_secret_key(base_dir: str) -> str:
     """
     Obtem a SECRET_KEY de variavel de ambiente.
     Caso nao esteja definida, gera e persiste localmente uma chave criptografica
-    em arquivo oculto (.secret_key) fora do controle de versao.
+    em arquivo oculto (.secret_key) no diretorio persistente.
     """
     env_key = os.environ.get("RASPORTA_SECRET_KEY") or os.environ.get("SECRET_KEY")
     if env_key and len(env_key.strip()) >= 24:
         return env_key.strip()
 
-    key_file = os.path.join(base_dir, ".secret_key")
+    pasta_dados = obter_diretorio_dados(base_dir)
+    key_file = os.path.join(pasta_dados, ".secret_key")
     if os.path.exists(key_file):
         with open(key_file, "r", encoding="utf-8") as f:
             chave = f.read().strip()

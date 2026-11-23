@@ -1,0 +1,7 @@
+{$RASPORTA_DOMINIO} {
+    encode gzip zstd
+    reverse_proxy rasporta-web:5000 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

@@ -1,12 +1,12 @@
 import os
 import shutil
 import sqlite3
-from datetime import datetime
-from config_sistema import PERIODOS, agora_campus
+from config_sistema import agora_campus, obter_diretorio_dados
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.environ.get("RASPORTA_DB_PATH", os.path.join(BASE_DIR, "banco.db"))
-BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+DATA_DIR = obter_diretorio_dados(BASE_DIR)
+DB_PATH = os.environ.get("RASPORTA_DB_PATH", os.path.join(DATA_DIR, "banco.db"))
+BACKUP_DIR = os.environ.get("RASPORTA_BACKUP_DIR", os.path.join(DATA_DIR, "backups"))
 
 
 def get_db(db_path: str | None = None) -> sqlite3.Connection:
@@ -17,6 +17,10 @@ def get_db(db_path: str | None = None) -> sqlite3.Connection:
     - Modo WAL para leituras/escritas concorrentes seguras
     """
     caminho = db_path or DB_PATH
+    pasta_pai = os.path.dirname(os.path.abspath(caminho))
+    if pasta_pai:
+        os.makedirs(pasta_pai, exist_ok=True)
+
     conn = sqlite3.connect(caminho, timeout=10.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -43,13 +47,13 @@ def criar_backup_banco(db_path: str | None = None, destino_dir: str | None = Non
     pasta_destino = destino_dir or BACKUP_DIR
     os.makedirs(pasta_destino, exist_ok=True)
 
-    timestamp = agora_campus().strftime("%Y%m%d_%H%M%S")
-    arquivo_backup = os.path.join(pasta_destino, f"banco_backup_{timestamp}.db")
-
     if not os.path.exists(origem_path):
         return ""
 
-    src = sqlite3.connect(origem_path)
+    timestamp = agora_campus().strftime("%Y%m%d_%H%M%S_%f")
+    arquivo_backup = os.path.join(pasta_destino, f"banco_backup_{timestamp}.db")
+
+    src = sqlite3.connect(origem_path, timeout=10.0)
     dst = sqlite3.connect(arquivo_backup)
     try:
         src.backup(dst)
@@ -57,7 +61,12 @@ def criar_backup_banco(db_path: str | None = None, destino_dir: str | None = Non
         dst.close()
         src.close()
 
-    # Mantem no maximo os 15 backups mais recentes
+    try:
+        os.chmod(arquivo_backup, 0o600)
+    except OSError:
+        pass
+
+    # Mantem no maximo os 30 backups mais recentes
     arquivos = sorted(
         [
             os.path.join(pasta_destino, f)
@@ -65,7 +74,7 @@ def criar_backup_banco(db_path: str | None = None, destino_dir: str | None = Non
             if f.startswith("banco_backup_") and f.endswith(".db")
         ]
     )
-    for antigo in arquivos[:-15]:
+    for antigo in arquivos[:-30]:
         try:
             os.remove(antigo)
         except OSError:
@@ -80,6 +89,10 @@ def restaurar_backup_banco(arquivo_backup: str, db_path: str | None = None) -> N
     if not os.path.exists(arquivo_backup):
         raise FileNotFoundError(f"Backup nao encontrado: {arquivo_backup}")
     criar_backup_banco(destino_path)
+    # Remove arquivos WAL/SHM residuais antes de sobrescrever
+    for sufixo in ("-wal", "-shm"):
+        if os.path.exists(destino_path + sufixo):
+            os.remove(destino_path + sufixo)
     shutil.copy2(arquivo_backup, destino_path)
 
 
@@ -88,7 +101,7 @@ def inicializar_banco(db_path: str | None = None) -> None:
     Cria tabelas, indices e aplica migracoes seguras sem apagar dados existentes.
     """
     caminho = db_path or DB_PATH
-    if os.path.exists(caminho):
+    if os.path.exists(caminho) and os.environ.get("RASPORTA_BACKUP_ON_BOOT", "1") == "1":
         criar_backup_banco(caminho)
 
     conn = get_db(caminho)
@@ -154,6 +167,30 @@ def inicializar_banco(db_path: str | None = None) -> None:
                     detalhes TEXT NOT NULL,
                     criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+
+                CREATE TABLE IF NOT EXISTS EstacaoLeitura (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    identificador VARCHAR(64) NOT NULL UNIQUE,
+                    nome VARCHAR(100) NOT NULL,
+                    id_laboratorio INTEGER NOT NULL,
+                    segredo_hmac VARCHAR(128) NOT NULL,
+                    ativa INTEGER NOT NULL DEFAULT 1,
+                    ultimo_contato TIMESTAMP,
+                    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (id_laboratorio) REFERENCES Laboratorio(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS LogVerificacaoFisica (
+                    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                    estacao_identificador VARCHAR(64) NOT NULL,
+                    id_laboratorio INTEGER NOT NULL,
+                    codigo_mascarado VARCHAR(32) NOT NULL,
+                    usuario_id INTEGER,
+                    autorizado INTEGER NOT NULL,
+                    motivo VARCHAR(200) NOT NULL,
+                    ip_origem VARCHAR(64),
+                    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
             """)
 
             # Migracoes seguras para bancos pre-existentes
@@ -164,7 +201,6 @@ def inicializar_banco(db_path: str | None = None) -> None:
                 conn.execute(
                     "ALTER TABLE SistemaUsuario ADD COLUMN nivel_admin VARCHAR(20) NOT NULL DEFAULT 'usuario'"
                 )
-                # Preserva administradores existentes promovendo o primeiro a super_admin
                 admins = conn.execute(
                     "SELECT id FROM SistemaUsuario WHERE is_admin = 1 ORDER BY id ASC"
                 ).fetchall()
@@ -178,7 +214,6 @@ def inicializar_banco(db_path: str | None = None) -> None:
             if not _coluna_existe(conn, "Reserva", "serie_id"):
                 conn.execute("ALTER TABLE Reserva ADD COLUMN serie_id VARCHAR(64)")
 
-            # Indices de integridade e desempenho
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_usuario_codigo_barras "
                 "ON SistemaUsuario(codigo_barras) WHERE codigo_barras IS NOT NULL AND codigo_barras != ''"
@@ -191,6 +226,9 @@ def inicializar_banco(db_path: str | None = None) -> None:
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_reserva_serie ON Reserva(serie_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_verificacao_criado ON LogVerificacaoFisica(criado_em DESC)"
             )
     finally:
         conn.close()
